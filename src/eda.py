@@ -71,3 +71,52 @@ class EDA:
         except Exception as e:
             self.logger.error(f"Error while checking missing values: {e}")
             raise
+    
+    def process_and_clean_data(self):
+        # Log the start of the data cleaning process
+        self.logger.info("Processing and cleaning data: Handling missing values, converting data types, and checking for negative values...")
+
+        # 1. Handle Missing Values
+        for column in self.df.columns:
+            if self.df[column].dtype == 'object':  # Categorical columns
+                missing_count = self.df[column].isnull().sum()
+                if missing_count > 0:
+                    self.df[column].fillna('Unknown', inplace=True)
+                    self.logger.info(f"Missing values in '{column}' filled with 'Unknown'.")
+            else:  # Numeric columns
+                missing_count = self.df[column].isnull().sum()
+                if missing_count > 0:
+                    self.df[column].fillna(self.df[column].median(), inplace=True)
+                    self.logger.info(f"Missing values in '{column}' filled with median value.")
+
+        # 2. Convert Data Types using a loop
+        dtype_conversions = {
+            'StateHoliday': 'category',
+            'StoreType': 'category',
+            'Assortment': 'category',
+            'PromoInterval': 'category',
+            'Date': 'datetime',
+            'CompetitionOpenSinceMonth': 'Int64',
+            'CompetitionOpenSinceYear': 'Int64'
+        }
+
+        for column, dtype in dtype_conversions.items():
+            if column in self.df.columns:
+                if dtype == 'datetime':
+                    self.df[column] = pd.to_datetime(self.df[column], errors='coerce')
+                else:
+                    self.df[column] = self.df[column].astype(dtype, errors='ignore')
+                self.logger.info(f"Converted '{column}' to {dtype}.")
+
+        # 3. Check for Negative Values
+        for column in self.df.select_dtypes(include=['float64', 'int64']).columns:
+            negative_values = self.df[column] < 0
+            if negative_values.any():
+                negative_count = negative_values.sum()
+                self.df.loc[negative_values, column] = 0  # Replace negative values with zero or an appropriate value
+                self.logger.info(f"Replaced {negative_count} negative values in '{column}' with zero.")
+
+        # Log the completion of the data cleaning process
+        self.logger.info("Data processing and cleaning completed.")
+
+        return self.df
