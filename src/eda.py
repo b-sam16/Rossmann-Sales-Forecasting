@@ -1,7 +1,7 @@
-# src/eda.py
-
+import sys
+sys.path.append('../src')
 import pandas as pd
-from src.logger import Logger
+from logger import Logger
 
 class EDA:
     def __init__(self, train_path: str, store_path: str):
@@ -32,10 +32,6 @@ class EDA:
         try:
             self.logger.info("Exploring dataset...")
             
-            # Data Types
-            data_types = self.df.dtypes
-            self.logger.info(f"Data Types:\n{data_types}")
-            
             # First 5 Rows
             head = self.df.head()
             self.logger.info(f"First 5 Rows:\n{head}")
@@ -48,7 +44,7 @@ class EDA:
             stats = self.df.describe()
             self.logger.info(f"Basic Statistics:\n{stats}")
             
-            return data_types, head, info, stats
+            return head, info, stats
         
         except Exception as e:
             self.logger.error(f"Error exploring data: {e}")
@@ -65,11 +61,13 @@ class EDA:
                 'Percentage': missing_percentage
             }).sort_values(by='Missing Values', ascending=False)
             
-            self.logger.info("Missing values calculated successfully.")
-            self.logger.info(f"Missing Values Summary:\n{missing_df[missing_df['Missing Values'] > 0]}")
+            # Filter only columns with missing data
+            missing_df = missing_df[missing_df['Missing Values'] > 0]
             
-            return missing_df[missing_df['Missing Values'] > 0]
-        
+            self.logger.info("Missing values calculated successfully.")
+            self.logger.info(f"Missing Values Summary:\n{missing_df}")
+            
+            return missing_df
         except Exception as e:
             self.logger.error(f"Error while checking missing values: {e}")
             raise
