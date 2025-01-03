@@ -1,7 +1,9 @@
 import sys
 sys.path.append('../src')
 import pandas as pd
+import numpy as np
 from logger import Logger
+
 
 class EDA:
     def __init__(self, train_path: str, store_path: str):
@@ -120,3 +122,37 @@ class EDA:
         self.logger.info("Data processing and cleaning completed.")
 
         return self.df
+    
+    def handle_outliers(self):
+        """
+        Detect and handle outliers using the IQR method for numeric columns.
+        """
+        try:
+            self.logger.info("Handling outliers using the IQR method...")
+            
+            numeric_columns = self.df.select_dtypes(include=['float64', 'int64']).columns
+            
+            for column in numeric_columns:
+                Q1 = self.df[column].quantile(0.25)
+                Q3 = self.df[column].quantile(0.75)
+                IQR = Q3 - Q1
+                lower_bound = Q1 - 1.5 * IQR
+                upper_bound = Q3 + 1.5 * IQR
+                
+                outlier_mask = (self.df[column] < lower_bound) | (self.df[column] > upper_bound)
+                outlier_count = outlier_mask.sum()
+                
+                if outlier_count > 0:
+                    # Option 1: Cap outliers
+                    self.df[column] = np.where(self.df[column] < lower_bound, lower_bound, self.df[column])
+                    self.df[column] = np.where(self.df[column] > upper_bound, upper_bound, self.df[column])
+                    
+                    self.logger.info(f"Outliers handled in column '{column}': {outlier_count} values capped.")
+            
+            self.logger.info("Outlier handling completed successfully.")
+            return self.df
+        
+        except Exception as e:
+            self.logger.error(f"Error while handling outliers: {e}")
+            raise
+        
