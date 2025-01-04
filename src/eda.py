@@ -83,12 +83,12 @@ class EDA:
             if self.df[column].dtype == 'object':  # Categorical columns
                 missing_count = self.df[column].isnull().sum()
                 if missing_count > 0:
-                    self.df[column].fillna('Unknown', inplace=True)
+                    self.df.fillna({column:'Unknown'}, inplace=True)
                     self.logger.info(f"Missing values in '{column}' filled with 'Unknown'.")
             else:  # Numeric columns
                 missing_count = self.df[column].isnull().sum()
                 if missing_count > 0:
-                    self.df[column].fillna(self.df[column].median(), inplace=True)
+                    self.df.fillna({column: self.df[column].median()}, inplace=True)
                     self.logger.info(f"Missing values in '{column}' filled with median value.")
 
         # 2. Convert Data Types using a loop
@@ -99,7 +99,8 @@ class EDA:
             'PromoInterval': 'category',
             'Date': 'datetime',
             'CompetitionOpenSinceMonth': 'Int64',
-            'CompetitionOpenSinceYear': 'Int64'
+            'CompetitionOpenSinceYear': 'Int64', 
+            'store':'category','DayOfWeek':'category','Sales':'float64','Customers':'Int64','Open':'category','Promo':'category','SchoolHoliday':'category','CompetionDistance':'float64','Promo2':'category','Promo2SinceWeek':'Int64','Promo2SinceYear':'Int64'
         }
 
         for column, dtype in dtype_conversions.items():
