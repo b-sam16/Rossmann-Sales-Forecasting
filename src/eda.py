@@ -100,7 +100,11 @@ class EDA:
             'Date': 'datetime',
             'CompetitionOpenSinceMonth': 'Int64',
             'CompetitionOpenSinceYear': 'Int64', 
-            'store':'category','DayOfWeek':'category','Sales':'float64','Customers':'Int64','Open':'category','Promo':'category','SchoolHoliday':'category','CompetionDistance':'float64','Promo2':'category','Promo2SinceWeek':'Int64','Promo2SinceYear':'Int64'
+            'store':'category',
+            'DayOfWeek':'category',
+            'Sales':'float64',
+            'Customers':'Int64',
+            'Open':'category','Promo':'category','SchoolHoliday':'category','CompetionDistance':'float64','Promo2':'category','Promo2SinceWeek':'Int64','Promo2SinceYear':'Int64'
         }
 
         for column, dtype in dtype_conversions.items():
