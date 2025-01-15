@@ -1,5 +1,6 @@
 import sys
 sys.path.append('../src')
+from pathlib import Path
 import pandas as pd
 import numpy as np
 from logger import Logger
@@ -83,12 +84,12 @@ class EDA:
             if self.df[column].dtype == 'object':  # Categorical columns
                 missing_count = self.df[column].isnull().sum()
                 if missing_count > 0:
-                    self.df[column].fillna('Unknown', inplace=True)
+                    self.df.fillna({column:'Unknown'}, inplace=True)
                     self.logger.info(f"Missing values in '{column}' filled with 'Unknown'.")
             else:  # Numeric columns
                 missing_count = self.df[column].isnull().sum()
                 if missing_count > 0:
-                    self.df[column].fillna(self.df[column].median(), inplace=True)
+                    self.df.fillna({column: self.df[column].median()}, inplace=True)
                     self.logger.info(f"Missing values in '{column}' filled with median value.")
 
         # 2. Convert Data Types using a loop
@@ -99,7 +100,12 @@ class EDA:
             'PromoInterval': 'category',
             'Date': 'datetime',
             'CompetitionOpenSinceMonth': 'Int64',
-            'CompetitionOpenSinceYear': 'Int64'
+            'CompetitionOpenSinceYear': 'Int64', 
+            'store':'category',
+            'DayOfWeek':'category',
+            'Sales':'float64',
+            'Customers':'Int64',
+            'Open':'category','Promo':'category','SchoolHoliday':'category','CompetionDistance':'float64','Promo2':'category','Promo2SinceWeek':'Int64','Promo2SinceYear':'Int64'
         }
 
         for column, dtype in dtype_conversions.items():
@@ -155,4 +161,30 @@ class EDA:
         except Exception as e:
             self.logger.error(f"Error while handling outliers: {e}")
             raise
-        
+
+            raise
+
+    def save_separated_data(self, cleaned_df, save_path=None):
+        """Save separated train and store data into individual CSV files."""
+        # Columns in store.csv
+        store_columns = ['Store', 'StoreType', 'Assortment', 'CompetitionDistance', 'CompetitionOpenSinceMonth', 'CompetitionOpenSinceYear', 'Promo2', 'Promo2SinceWeek', 'Promo2SinceYear', 'PromoInterval']
+        # Columns in train.csv
+        train_columns = ['Store', 'DayOfWeek', 'Date', 'Sales', 'Customers', 'Open', 'Promo', 'StateHoliday', 'SchoolHoliday']
+    
+        # Separate DataFrames
+        store_df = cleaned_df[store_columns].drop_duplicates()  # Remove duplicates for store data
+        train_df = cleaned_df[train_columns].drop_duplicates()  # Remove duplicates for train data
+
+        # Use the provided save path or default to a relative path
+        if save_path is None:
+            save_path = '../data/processed'
+
+        # Ensure the directory exists
+        processed_dir = Path(save_path)
+        processed_dir.mkdir(parents=True, exist_ok=True)
+
+        # Save DataFrames to CSV files in the specified directory
+        store_df.to_csv(processed_dir /     'cleaned_store_data.csv', index=False)
+        train_df.to_csv(processed_dir / 'cleaned_train_data.csv', index=False)
+
+        print("Separated data saved successfully.")

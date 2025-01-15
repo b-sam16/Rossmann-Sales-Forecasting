@@ -5,10 +5,6 @@ import seaborn as sns
 import matplotlib.pyplot as plt
 from logger import Logger
 import matplotlib.dates as mdates
-import logging
-
-# Initialize Logger
-logger = Logger('SalesVisualizer').get_logger()
 
 
 class SalesVisualizer:
@@ -20,68 +16,84 @@ class SalesVisualizer:
         """
         Initialize with training and test datasets.
         """
+        self.logger = Logger(self.__class__.__name__).get_logger()
         self.train_df = train_df
         self.test_df = test_df
-        self.logger = logging.getLogger(__name__)
-        logging.basicConfig(level=logging.INFO)
-        logger.info("SalesVisualizer initialized with training and test data.")
+        self.logger.info("SalesVisualizer initialized with training and test data.")
 
     def compare_promo_distribution(self):
         """
         Compare promotion distribution between training and test datasets.
         """
         try:
-            logger.info("Comparing promotion distribution between training and test datasets.")
-            plt.figure(figsize=(10, 6))
-            sns.histplot(self.train_df['Promo'], color='blue', label='Train', kde=True)
-            sns.histplot(self.test_df['Promo'], color='orange', label='Test', kde=True)
-            plt.title('Promotion Distribution in Train vs Test Data')
-            plt.legend()
-            plt.show()
-            logger.info("Promotion distribution plot generated successfully.")
-        except Exception as e:
-            logger.error(f"Error in compare_promo_distribution: {e}")
+            self.logger.info("Comparing promotion distribution between training and test datasets.")
 
-    def sales_during_holidays(self):
+            train_promos = self.train_df['Promo'].value_counts(normalize=True) 
+            test_promos = self.test_df['Promo'].value_counts(normalize=True) 
+            comparison_df = pd.DataFrame({'Train': train_promos, 'Test': test_promos})
+                                                                    
+            plt.figure(figsize=(10, 6))
+            comparison_df.plot(kind='bar')
+            plt.title('Promotion Distribution in Train vs Test Data')
+            plt.xlabel('Promo') 
+            plt.ylabel('Frequency')
+            plt.show()
+            self.logger.info("Promotion distribution plot generated successfully.")
+        except Exception as e:
+            self.logger.error(f"Error in compare_promo_distribution: {e}")
+
+    def sales_behavior_around_holidays(self):
         """
-        Analyze sales behavior before, during, and after holidays.
+        Compare sales behavior before, during, and after holidays.
         """
         try:
-            logger.info("Analyzing sales behavior before, during, and after holidays using a line plot with markers.")
+            self.logger.info("Comparing sales behavior before, during, and after holidays.")
         
-            # Ensure 'Date' column is in datetime format
-            self.train_df['Date'] = pd.to_datetime(self.train_df['Date'])
+            # Filter rows with holidays
+            holiday_sales = self.train_df[self.train_df['StateHoliday'] != '0'].copy()
         
-            # Group by date and calculate average sales
-            daily_sales = self.train_df.groupby(['Date', 'SchoolHoliday'])['Sales'].mean().reset_index()
+            # Ensure the dataset is sorted by Date for accurate time-based analysis
+            self.train_df.sort_values(by='Date', inplace=True)
+            self.train_df.reset_index(drop=True, inplace=True)
         
-            plt.figure(figsize=(14, 7))
-            sns.lineplot(data=daily_sales, x='Date', y='Sales', hue='SchoolHoliday', palette='tab10')
+            # Create 'HolidayPeriod' column
+            self.train_df['HolidayPeriod'] = 'Normal'
+            self.train_df.loc[self.train_df['StateHoliday'] != '0', 'HolidayPeriod'] = 'During Holiday'
+            self.train_df.loc[self.train_df['StateHoliday'] == '0','HolidayPeriod'] = 'Normal'
         
-            # Highlight holiday periods
-            holiday_dates = daily_sales[daily_sales['SchoolHoliday'] == 1]['Date']
-            plt.vlines(holiday_dates, ymin=daily_sales['Sales'].min(), ymax=daily_sales['Sales'].max(),
-                   colors='red', linestyles='dashed', alpha=0.5, label='Holiday')
+            # Label 'Before Holiday' and 'After Holiday'
+            for idx in holiday_sales.index:
+                if idx > 0:
+                    self.train_df.at[idx - 1, 'HolidayPeriod'] = 'Before Holiday'
+                if idx < len(self.train_df) - 1:
+                    self.train_df.at[idx + 1, 'HolidayPeriod'] = 'After Holiday'
+        
+            # Group by HolidayPeriod and calculate average sales
+            holiday_period_sales = self.train_df.groupby('HolidayPeriod')['Sales'].mean().reset_index()
+
+            # Plotting
+            plt.figure(figsize=(12, 6))
+            sns.barplot(
+                data=holiday_period_sales,
+                x='HolidayPeriod',
+                y='Sales',
+                palette={'Before Holiday': 'skyblue', 'During Holiday': 'orange', 'After Holiday': 'green', 'Normal': 'gray'}
+            )
         
             plt.title('Sales Behavior Before, During, and After Holidays')
-            plt.xlabel('Date')
+            plt.xlabel('Holiday Period')
             plt.ylabel('Average Sales')
-            plt.legend(title='Holiday Status')
-            plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-            plt.xticks(rotation=45)
-            plt.tight_layout()
             plt.show()
         
-            logger.info("Sales behavior during holidays plot generated successfully using line plot with markers.")
         except Exception as e:
-            logger.error(f"Error in sales_during_holidays: {e}")
+            self.logger.error(f"Error analyzing sales behavior around holidays: {e}")
 
     def seasonal_behavior(self):
         """
         Analyze seasonal sales patterns.
         """
         try:
-            logger.info("Analyzing seasonal sales behavior.")
+            self.logger.info("Analyzing seasonal sales behavior.")
             self.train_df['Date'] = pd.to_datetime(self.train_df['Date'])
             self.train_df['Month'] = self.train_df['Date'].dt.month
             monthly_sales = self.train_df.groupby('Month')['Sales'].mean().reset_index()
@@ -89,133 +101,231 @@ class SalesVisualizer:
             sns.lineplot(data=monthly_sales, x='Month', y='Sales', marker='o')
             plt.title('Average Monthly Sales Trend')
             plt.show()
-            logger.info("Seasonal behavior plot generated successfully.")
+            self.logger.info("Seasonal behavior plot generated successfully.")
         except Exception as e:
-            logger.error(f"Error in seasonal_behavior: {e}")
+            self.logger.error(f"Error analyzing seasonal sales behavior: {e}")
 
     def sales_customer_correlation(self):
         """
         Analyze correlation between sales and number of customers.
         """
         try:
-            logger.info("Analyzing correlation between sales and customers.")
+            self.logger.info("Analyzing correlation between sales and customers.")
+
+            # Check correlation coefficient
+            correlation = self.train_df['Sales'].corr(self.train_df['Customers'])
+            self.logger.info(f"Correlation between Sales and Customers: {correlation:.2f}")
+
+            # Plotting scatter plot
             plt.figure(figsize=(10, 6))
             sns.scatterplot(data=self.train_df, x='Customers', y='Sales', alpha=0.5)
             plt.title('Correlation Between Sales and Number of Customers')
             plt.show()
-            logger.info("Sales and customers correlation plot generated successfully.")
+            self.logger.info("Sales and customers correlation plot generated successfully.")
         except Exception as e:
-            logger.error(f"Error in sales_customer_correlation: {e}")
+            self.logger.error(f"Error in sales_customer_correlation: {e}")
 
     def promo_impact_on_sales_and_customers(self):
         """
         Analyze how promo affects sales and whether it attracts new customers.
         """
         try:
-            logger.info("Analyzing promo impact on sales and customer behavior.")
+            self.logger.info("Analyzing promo impact on sales and customer behavior.")
         
-            # Compare sales and customer behavior during promo vs non-promo periods
-            g = sns.FacetGrid(self.train_df, col='Promo', hue='Promo', height=5, aspect=1.5)
-            g.map(sns.scatterplot, 'Customers', 'Sales', alpha=.7)
+            # Average sales and customers during promo and non-promo days
+            promo_summary = self.train_df.groupby('Promo').agg({
+                'Sales': 'mean',
+                'Customers': 'mean'
+            }).reset_index()
         
-            g.add_legend()
-            g.set_axis_labels('Number of Customers', 'Sales')
-            plt.tight_layout()
+            # Melt the data for visualization
+            promo_summary_melted = promo_summary.melt(
+                id_vars='Promo',
+                value_vars=['Sales', 'Customers'],
+                var_name='Metric',
+                value_name='Average'
+            )
+        
+            # Plotting average sales and customers with and without promo
+            plt.figure(figsize=(12, 6))
+            ax = sns.barplot(
+                data=promo_summary_melted,
+                x='Metric',
+                y='Average',
+                hue='Promo',
+                palette='coolwarm'
+            )
+            plt.title('Average Sales and Customer Count During Promo and Non-Promo Days')
+            plt.xlabel('Metric')
+            plt.ylabel('Average Value')
+            
+            handles, labels = ax.get_legend_handles_labels()
+            ax.legend(handles=handles, labels=['No Promo', 'Promo'], title='Promo')
             plt.show()
         
-            logger.info("Promo impact on sales and customers plot generated successfully.")
+            # Promo trends over time
+            plt.figure(figsize=(14, 7))
+            ax = sns.lineplot(
+                data=self.train_df,
+                x='Date',
+                y='Sales',
+                hue='Promo'
+            )
+            plt.title('Sales Trends Over Time with Promo and Without Promo')
+            plt.xlabel('Date')
+            plt.ylabel('Sales')
+            handles, labels = ax.get_legend_handles_labels()
+
+            ax.legend(handles=handles, labels=['No Promo', 'Promo'], title='Promo')
+            plt.show()
         except Exception as e:
-            logger.error(f"Error in promo_impact_on_sales_and_customers: {e}")
+            self.logger.error(f"Error in promo_impact_on_sales_and_customers: {e}")
+
+
     def effective_promo_deployment(self):
         """
         Analyze where promos could be deployed more effectively.
         """
         try:
-            logger.info("Analyzing effective promo deployment.")
+            self.logger.info("Analyzing promo effectiveness across stores.")
         
-            # Scatter plot comparing sales and promo status by store
-            plt.figure(figsize=(10, 6))
-            sns.scatterplot(data=self.train_df, x='Store', y='Sales', hue='Promo', style='Promo', palette='deep', markers=["o", "s"])
+            # Calculate average sales with and without promo for each store
+            promo_store = self.train_df.groupby(['Store', 'Promo']).agg({
+            'Sales': 'mean',
+            'Customers': 'mean'
+            }).reset_index()
         
-            plt.title('Promo Deployment Effectiveness by Store')
-            plt.xlabel('Store ID')
-            plt.ylabel('Sales')
-            plt.tight_layout()
+            # Pivot the data for easier comparison
+            promo_pivot = promo_store.pivot(index='Store', columns='Promo', values=['Sales', 'Customers'])
+            promo_pivot.columns = ['Sales_No_Promo', 'Sales_Promo', 'Customers_No_Promo', 'Customers_Promo']
+            promo_pivot.reset_index(inplace=True)
+        
+            # Calculate promo effectiveness
+            promo_pivot['Sales_Change_%'] = ((promo_pivot['Sales_Promo'] - promo_pivot['Sales_No_Promo']) / 
+                                         promo_pivot['Sales_No_Promo']) * 100
+            promo_pivot['Customers_Change_%'] = ((promo_pivot['Customers_Promo'] - promo_pivot['Customers_No_Promo']) / 
+                                             promo_pivot['Customers_No_Promo']) * 100
+        
+            # Top-performing stores (High Sales and Customer Change %)
+            top_stores = promo_pivot.sort_values(by='Sales_Change_%', ascending=False).head(10)
+        
+            # Underperforming stores (Low or Negative Sales Change %)
+            low_stores = promo_pivot.sort_values(by='Sales_Change_%').head(10)
+        
+            # Plotting top-performing stores
+            plt.figure(figsize=(14, 6))
+            sns.barplot(data=top_stores, x='Store', y='Sales_Change_%', palette='Blues_d')
+            plt.title('Top 10 Stores with Highest Sales Increase During Promo')
+            plt.xlabel('Store')
+            plt.ylabel('Sales Change (%)')
+            plt.xticks(rotation=45)
             plt.show()
         
-            logger.info("Effective promo deployment plot generated successfully.")
+            # Plotting underperforming stores
+            plt.figure(figsize=(14, 6))
+            sns.barplot(data=low_stores, x='Store', y='Sales_Change_%', palette='Reds_d')
+            plt.title('Bottom 10 Stores with Lowest Sales Change During Promo')
+            plt.xlabel('Store')
+            plt.ylabel('Sales Change (%)')
+            plt.xticks(rotation=45)
+            plt.show()
         except Exception as e:
-            logger.error(f"Error in effective_promo_deployment: {e}")
+            self.logger.error(f"Error in effective_promo_deployment: {e}")
 
     def customer_behavior_during_opening_closing(self):
         """Visualize customer behavior during store opening and closing times.
         """
         try:
             self.logger.info("Analyzing customer behavior during store opening and closing times.")
-
-            # Check for customer behavior based on the 'Open' column (0 = closed, 1 = open)
-            open_data = self.df[self.df['Open'] == 1]  # Data when the store is open
-            closed_data = self.df[self.df['Open'] == 0]  # Data when the store is closed
-
-            # Visualize customer behavior during opening and closing times
+        
+            # Extract hour from the Date column (assuming store open/close times are consistent)
+            self.train_df['Day'] = self.train_df['Date'].dt.day_name()
+            self.train_df['Hour'] = self.train_df['Date'].dt.hour if 'Hour' in self.train_df.columns else 0
+        
+            # Filter only open stores
+            open_stores = self.train_df[self.train_df['Open'] == 1]
+        
+            # Average Customers by Day of the Week
+            daily_customers = open_stores.groupby('Day')['Customers'].mean().reset_index()
+            daily_customers = daily_customers.sort_values(by='Customers', ascending=False)
+        
+            # Plot Average Customers by Day of the Week
             plt.figure(figsize=(12, 6))
-
-            # Plot customer count during store open and closed times
-            plt.plot(open_data['Date'], open_data['CustomerCount'], label='Customer Count during Opening', color='green', linestyle='--')
-            plt.plot(closed_data['Date'], closed_data['CustomerCount'], label='Customer Count during Closing', color='red', linestyle=':')
-
-            # Add labels and title
-            plt.xlabel('Date')
-            plt.ylabel('Customer Count')
-            plt.title('Customer Behavior During Store Opening and Closing Times')
-            plt.legend()
-            plt.grid(True)
-            plt.xticks(rotation=45)  # Rotate x-axis labels for readability
+            sns.barplot(data=daily_customers, x='Day', y='Customers', palette='viridis')
+            plt.title('Average Number of Customers by Day of the Week')
+            plt.xlabel('Day of the Week')
+            plt.ylabel('Average Customers')
+            plt.xticks(rotation=45)
             plt.show()
-
-            self.logger.info("Customer behavior during store opening and closing times visualized successfully.")
+        
+            # Customers during opening vs closing hours
+            open_closing_customers = open_stores.groupby('Day')[['Sales', 'Customers']].mean().reset_index()
+        
+            # Plot Sales vs Customers by Day
+            fig, ax1 = plt.subplots(figsize=(14, 6))
+        
+            sns.barplot(data=open_closing_customers, x='Day', y='Sales', color='skyblue', ax=ax1, label='Sales')
+            ax2 = ax1.twinx()
+            sns.lineplot(data=open_closing_customers, x='Day', y='Customers', color='orange', marker='o', ax=ax2, label='Customers')
+        
+            ax1.set_xlabel('Day of the Week')
+            ax1.set_ylabel('Average Sales', color='skyblue')
+            ax2.set_ylabel('Average Customers', color='orange')
+            plt.title('Sales and Customer Trends by Day of the Week')
+            fig.legend(loc='upper right')
+            plt.show()
 
         except Exception as e:
             self.logger.error(f"Error in customer_behavior_during_opening_closing: {e}")
-        raise
 
-
-    def stores_open_all_weekdays(self):
-        """Analyze stores open on all weekdays and their sales on weekends."""
+    def analyze_weekday_vs_weekend_sales(self):
+        """
+        Identify stores consistently open on all weekdays and compare their sales behavior 
+        on weekdays vs weekends.
+        """
         try:
             self.logger.info("Analyzing stores open on all weekdays and their sales on weekends.")
         
-            # Identify stores that are open on all weekdays (Monday to Friday)
-            weekday_open_stores = self.df.groupby('Store')['Open'].apply(lambda x: set(x[:5]) == {1}).reset_index()
-            weekday_open_stores = weekday_open_stores[weekday_open_stores['Open'] == True]
-
-            # Merge back with the original data to get sales data for the selected stores
-            weekday_open_data = self.df[self.df['Store'].isin(weekday_open_stores['Store'])]
-
-            # Analyze weekend sales for stores that are open on weekdays
-            weekend_data = weekday_open_data[weekday_open_data['dayofweek'] >= 5]  # Saturday (5) and Sunday (6)
-
-            # Visualize the sales behavior on weekends for stores open all weekdays
-            plt.figure(figsize=(12, 6))
-
-            # Plot sales for the weekend (Saturday and Sunday)
-            plt.plot(weekend_data['Date'], weekend_data['Sales'], label='Weekend Sales for Weekday Open Stores', color='blue')
-
-            # Add labels and title
-            plt.xlabel('Date')
-            plt.ylabel('Sales')
-            plt.title('Sales Behavior of Stores Open on All Weekdays    (Weekend Analysis)')
-            plt.legend()
-            plt.grid(True)
-            plt.xticks(rotation=45)
+            # Step 1: Identify stores open on all weekdays (Mon-Fri)
+            weekdays_data = self.train_df[self.train_df['DayOfWeek'].isin([1, 2, 3, 4, 5])]
+        
+            weekday_open_stores = weekdays_data.groupby('Store').agg(
+                weekdays_open=('Open', lambda x: (x == 1).all())
+            ).reset_index()
+        
+            # Filter stores consistently open all weekdays
+            open_all_weekdays_stores = weekday_open_stores[weekday_open_stores['weekdays_open']]['Store'].tolist()
+        
+            print("Stores consistently open on weekdays:", open_all_weekdays_stores)
+        
+            if not open_all_weekdays_stores:
+                self.logger.warning("No stores found that are consistently open on weekdays.")
+                return
+        
+            # Step 2: Analyze sales performance (Weekdays vs Weekends)
+            stores_data = self.train_df[self.train_df['Store'].isin(open_all_weekdays_stores)].copy()
+        
+            # Add DayType column
+            stores_data['DayType'] = stores_data['DayOfWeek'].apply(
+                lambda x: 'Weekday' if x in [1, 2, 3, 4, 5] else 'Weekend'
+            )
+        
+            # Calculate average sales by DayType
+            sales_by_daytype = stores_data.groupby('DayType')['Sales'].mean().reset_index()
+        
+            # Visualization
+            plt.figure(figsize=(10, 6))
+            sns.barplot(data=sales_by_daytype, x='DayType', y='Sales', palette='muted', hue='DayType', legend=False)
+            plt.title('Average Sales on Weekdays vs Weekends for Stores Open All Weekdays')
+            plt.ylabel('Average Sales')
+            plt.xlabel('Day Type')
             plt.show()
-
+        
             self.logger.info("Sales behavior for stores open on all weekdays visualized successfully.")
-
+    
         except Exception as e:
-            self.logger.error(f"Error in stores_open_all_weekdays: {e}")
-        raise
-
+            self.logger.error(f"Error in analyzing weekday vs weekend sales: {e}")
+            raise
 
 
     def assortment_type_sales_impact(self):
@@ -223,68 +333,128 @@ class SalesVisualizer:
         Analyze how assortment type affects sales.
         """
         try:
-            logger.info("Analyzing how assortment type affects sales.")
+            self.logger.info("Analyzing how assortment type affects sales.")
+            # Calculate average sales per assortment type
+            assortment_sales = (
+                self.train_df[self.train_df['Open'] == 1]
+                .groupby('Assortment')['Sales']
+                .mean()
+                .reset_index()
+                .sort_values(by='Sales', ascending=False)
+            )
         
-            # Box plot to compare sales across different assortment types
+            # Map assortment types for better readability
+            assortment_mapping = {'a': 'Basic', 'b': 'Extra', 'c': 'Extended'}
+            assortment_sales['Assortment'] = assortment_sales['Assortment'].map(assortment_mapping)
+
+
             plt.figure(figsize=(10, 6))
-            sns.boxplot(data=self.train_df, x='Assortment', y='Sales', palette='Set2')
-        
-            plt.title('Sales by Assortment Type')
+            sns.barplot(data=assortment_sales, x='Assortment', y='Sales', palette='muted', hue='Assortment')
+            plt.title('Effect of Assortment Type on Sales')
             plt.xlabel('Assortment Type')
-            plt.ylabel('Sales')
-            plt.tight_layout()
+            plt.ylabel('Average Sales')
             plt.show()
-        
             self.logger.info("Sales by assortment type plot generated successfully.")
         except Exception as e:
             self.logger.error(f"Error in assortment_type_sales_impact: {e}")
 
-
-    def competitor_distance_sales_impact(self):
+    def analyze_competition_distance_effect(self):
         """
-        Analyze how the distance to the next competitor affects sales.
+        Analyze how the distance to the next competitor affects sales, and 
+        compare the effect between city center and non-city center stores.
         """
         try:
-            self.logger.info("Analyzing the impact of competitor distance on sales.")
+            self.logger.info("Analyzing the effect of competitor distance on sales.")
         
-            # Create a column to distinguish city center stores (assumed logic for city center classification)
-            self.train_df['CityCenter'] = self.train_df['CompetitionDistance'].apply(lambda x: 1 if x < 1 else 0)
-        
-            # Scatter plot for distance to next competitor and sales
-            plt.figure(figsize=(10, 6))
-            sns.scatterplot(data=self.train_df, x='CompetitionDistance', y='Sales', hue='CityCenter', palette='viridis', alpha=0.7)
-        
-            plt.title('Sales vs. Competitor Distance')
-            plt.xlabel('Competitor Distance (km)')
+            # Step 1: Data Preparation 
+            self.train_df = self.train_df.dropna(subset=['CompetitionDistance']) 
+
+            # Step 2: Correlation Analysis 
+            overall_correlation = self.train_df['Sales'].corr(self.train_df['CompetitionDistance']) 
+            print(f"Overall Correlation between Sales and CompetitionDistance: {overall_correlation:.2f}") 
+
+            # Step 3: Visualization 
+            plt.figure(figsize=(10, 6)) 
+            sns.scatterplot(data=self.train_df, x='CompetitionDistance', y='Sales') 
+            plt.title(f'Sales vs Competition Distance (Corr: {overall_correlation:.2f})') 
+            plt.xlabel('Competition Distance') 
             plt.ylabel('Sales')
-            plt.tight_layout()
-            plt.show()
         
-            self.logger.info("Competitor distance vs. sales plot generated successfully.")
-        except Exception as e:
-            self.logger.error(f"Error in competitor_distance_sales_impact: {e}")
-
-    def competitor_reopening_sales_impact(self):
-        """ Analyze how the reopening of competitors impacts store sales. """
-        try:
-            self.logger.info("Analyzing the impact of competitor re-opening on store sales.")
-        
-            # Create a column to classify stores that have had a competitor open/reopened
-            self.train_df['CompetitorReopened'] = self.train_df.apply(
-            lambda row: 1 if row['CompetitionOpenSinceMonth'] != 0 and row['CompetitionOpenSinceYear'] != 0 else 0, axis=1)
-
-            # Plot the sales comparison
-            plt.figure(figsize=(10, 6))
-            sns.boxplot(x='CompetitorReopened', y='Sales', data=self.train_df, palette='coolwarm')
-            plt.title('Sales Impact of Competitor Reopening')
-            plt.xlabel('Competitor Reopened (1: Yes, 0: No)')
-            plt.ylabel('Sales')
-            plt.xticks([0, 1], ['No', 'Yes'])
-            plt.tight_layout()
-            plt.show()
-
-            self.logger.info("Competitor reopening vs. sales plot generated successfully.")
+            self.logger.info("Competitor distance analysis completed successfully.")
     
         except Exception as e:
-            self.logger.error(f"Error in competitor_reopening_sales_impact: {e}")
-            raise RuntimeError("An error occurred in competitor_reopening_sales_impact") from e
+            self.logger.error(f"Error in analyzing competitor distance effect: {e}")
+            raise
+
+
+
+    def analyze_competition_impact(self, df):
+        """
+        Analyzes the impact of competition on store sales by comparing the average sales before and after
+        the competitor opened.
+        """
+        self.logger.info("Starting analyze_competition_impact method.")
+        
+        # Filter stores with NA in CompetitionDistance
+        stores_with_na = df[df['CompetitionDistance'].isna()]
+        stores_with_na_ids = stores_with_na['Store'].unique()
+        
+        self.logger.info(f"Identified stores with no competitors: {stores_with_na_ids.tolist()}")
+        
+        # Check if these stores later receive valid CompetitionDistance values
+        for store_id in stores_with_na_ids:
+            store_data = df[df['Store'] == store_id]
+            valid_distance = store_data['CompetitionDistance'].dropna()
+            
+            if valid_distance.empty:
+                self.logger.info(f"Store {store_id} did not have a competitor open later.")
+            else:
+                self.logger.info(f"Store {store_id} had a competitor open later with CompetitionDistance values: {valid_distance.tolist()}")
+        
+        # Preprocess the CompetitionOpenSinceYear and remove unnecessary repeated steps
+        df['CompetitionOpenSinceYear'] = pd.to_numeric(df['CompetitionOpenSinceYear'], errors='coerce').fillna(0).astype(int)
+        
+        # List to store average sales for each category
+        avg_sales_before, avg_sales_after, avg_sales_no_competitor = [], [], []
+        
+        # Process each store with a valid competition distance
+        for store_id in df[df['CompetitionDistance'].notna()]['Store'].unique():
+            store_data = df[df['Store'] == store_id].copy()
+            
+            # Get the earliest competitor opening year
+            competitor_open_year = store_data['CompetitionOpenSinceYear'].min()
+            
+            if competitor_open_year == 0:
+                continue  # Skip if no competitor information
+            
+            # Split data into before and after competitor opening
+            before_open = store_data[store_data['Date'] < pd.to_datetime(f"{competitor_open_year}-01-01")]
+            after_open = store_data[store_data['Date'] >= pd.to_datetime(f"{competitor_open_year}-01-01")]
+            
+            # Store with no competitor (CompetitionDistance = NA)
+            no_competitor = df[df['CompetitionDistance'].isna()]
+            
+            # Calculate average sales for each group
+            avg_sales_before.append(before_open['Sales'].mean() if not before_open.empty else 0)
+            avg_sales_after.append(after_open['Sales'].mean() if not after_open.empty else 0)
+            avg_sales_no_competitor.append(no_competitor['Sales'].mean() if not no_competitor.empty else 0)
+        
+        # Create a bar chart for average sales comparison
+        categories = ['Before Competitor Opened', 'After Competitor Opened', 'No Competitor']
+        avg_sales = [
+            sum(avg_sales_before) / len(avg_sales_before), 
+            sum(avg_sales_after) / len(avg_sales_after),
+            sum(avg_sales_no_competitor) / len(avg_sales_no_competitor)
+        ]
+        
+        self.logger.info("Generated average sales data for each category.")
+        
+        # Plotting the bar chart
+        plt.figure(figsize=(10, 6))
+        plt.bar(categories, avg_sales, color=['red', 'green', 'blue'])
+        plt.title('Average Sales Comparison: Competitor Opening Impact')
+        plt.ylabel('Average Sales')
+        plt.xlabel('Store Categories')
+        plt.show()
+
+        self.logger.info("Displayed bar chart for sales comparison.")
